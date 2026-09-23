@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <title>AR Индер</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AR Индер — Что находится под землёй?</title>
 
   <script type="module"
     src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js">
@@ -14,23 +13,30 @@
     body {
       margin: 0;
       font-family: Arial, sans-serif;
+      background: #f3f3f3;
+      color: #222;
       text-align: center;
-      background: #f4f4f4;
+    }
+
+    header {
+      background: #e9e9e9;
+      padding: 18px 12px 10px;
     }
 
     h1 {
-      margin-top: 20px;
-      margin-bottom: 5px;
+      margin: 0;
+      font-size: 26px;
     }
 
-    p {
-      margin: 5px 20px 15px;
+    .subtitle {
+      margin-top: 6px;
+      font-size: 18px;
     }
 
     model-viewer {
       width: 100%;
-      height: 72vh;
-      background: white;
+      height: 62vh;
+      background: #f7f7f7;
     }
 
     .ar-button {
@@ -38,35 +44,148 @@
       color: white;
       border: none;
       border-radius: 14px;
-      padding: 14px 24px;
+      padding: 14px 22px;
       font-size: 18px;
       font-weight: bold;
+      cursor: pointer;
+    }
+
+    .panel {
+      max-width: 900px;
+      margin: 16px auto;
+      padding: 0 14px 30px;
+    }
+
+    .layer-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 18px;
+    }
+
+    .layer-buttons button {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
+    }
+
+    .btn-surface { background: #7d6a4f; }
+    .btn-soil    { background: #8a4b1f; }
+    .btn-salt    { background: #9ea7b3; }
+    .btn-rock    { background: #5b524a; }
+    .btn-water   { background: #1e88e5; }
+
+    .info-box {
+      background: white;
+      border-radius: 16px;
+      padding: 18px;
+      text-align: left;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      min-height: 120px;
+    }
+
+    .info-box h2 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 22px;
+    }
+
+    .info-box p {
+      margin: 0;
+      line-height: 1.5;
+      font-size: 17px;
+    }
+
+    .note {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #555;
     }
   </style>
 </head>
-
 <body>
 
-<h1>Что находится под землёй?</h1>
+  <header>
+    <h1>Что находится под землёй?</h1>
+    <div class="subtitle">AR-модель строения территории Индерского озера</div>
+  </header>
 
-<p>
-AR-модель строения территории Индерского озера
-</p>
+  <model-viewer
+    src="inder_zerde_ar.glb"
+    alt="3D-модель подземных слоёв Индерского озера"
+    camera-controls
+    auto-rotate
+    autoplay
+    ar
+    ar-modes="webxr scene-viewer quick-look"
+    shadow-intensity="1"
+    exposure="1">
 
-<model-viewer
-  src="inder_zerde_ar.glb"
-  camera-controls
-  auto-rotate
-  autoplay
-  ar
-  ar-modes="webxr scene-viewer quick-look"
-  shadow-intensity="1">
+    <button slot="ar-button" class="ar-button">
+      Посмотреть в AR
+    </button>
+  </model-viewer>
 
-  <button slot="ar-button" class="ar-button">
-    Посмотреть в AR
-  </button>
+  <div class="panel">
+    <div class="layer-buttons">
+      <button class="btn-surface" onclick="showInfo('surface')">Поверхность</button>
+      <button class="btn-soil" onclick="showInfo('soil')">Почва и глина</button>
+      <button class="btn-salt" onclick="showInfo('salt')">Соляные отложения</button>
+      <button class="btn-rock" onclick="showInfo('rock')">Горные породы</button>
+      <button class="btn-water" onclick="showInfo('water')">Подземные воды</button>
+    </div>
 
-</model-viewer>
+    <div class="info-box" id="infoBox">
+      <h2>Интерактивная модель</h2>
+      <p>
+        Нажмите на название слоя, чтобы узнать, что он означает.
+        Затем откройте модель в AR и посмотрите, как подземные слои
+        можно изучать через камеру телефона.
+      </p>
+    </div>
+
+    <div class="note">
+      Проект для конкурса Zerde: использование AR-технологии для изучения природных особенностей Индерского озера.
+    </div>
+  </div>
+
+  <script>
+    const infoData = {
+      surface: {
+        title: "Поверхность",
+        text: "Это верхняя часть территории: берег, поверхность земли и солёная корка. Именно это турист видит в реальности, стоя возле озера."
+      },
+      soil: {
+        title: "Почва и глина",
+        text: "Под поверхностью находится слой почвы и глины. Он покрывает более глубокие природные образования и помогает показать строение земли по слоям."
+      },
+      salt: {
+        title: "Соляные отложения",
+        text: "Это главный интересный слой. Здесь находятся накопившиеся соли. Благодаря AR можно показать то, что обычно скрыто под землёй и не видно обычному туристу."
+      },
+      rock: {
+        title: "Горные породы",
+        text: "Ниже располагаются более плотные горные породы. Они образуют основу территории и показывают, что под соляными слоями есть твёрдая природная структура."
+      },
+      water: {
+        title: "Подземные воды",
+        text: "На нижнем уровне показаны подземные воды. Они помогают объяснить природные процессы, связанные с солёностью и строением местности."
+      }
+    };
+
+    function showInfo(layer) {
+      const box = document.getElementById("infoBox");
+      box.innerHTML = `
+        <h2>${infoData[layer].title}</h2>
+        <p>${infoData[layer].text}</p>
+      `;
+    }
+  </script>
 
 </body>
 </html>
