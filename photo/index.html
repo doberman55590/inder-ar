@@ -1,13 +1,18 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Диагностика AR-фона</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Фото на Индере</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js"
+    crossorigin="anonymous">
+  </script>
 
   <style>
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
       font-family: Arial, sans-serif;
@@ -16,35 +21,43 @@
       text-align: center;
     }
 
+    header {
+      padding: 14px 12px 8px;
+    }
+
     h1 {
-      font-size: 24px;
-      margin: 16px 10px 8px;
+      margin: 0;
+      font-size: 26px;
     }
 
-    .statusBox {
-      max-width: 430px;
-      margin: 0 auto 12px;
-      padding: 12px;
-      background: #1e293b;
-      border-radius: 14px;
-      text-align: left;
+    .subtitle {
+      margin-top: 6px;
+      font-size: 15px;
+      opacity: .85;
+    }
+
+    .status {
+      min-height: 20px;
+      margin-top: 6px;
+      color: #93c5fd;
       font-size: 14px;
-      line-height: 1.5;
     }
 
-    .ok { color: #86efac; }
-    .wait { color: #fde68a; }
-    .bad { color: #fca5a5; }
+    .stage-wrap {
+      display: flex;
+      justify-content: center;
+      padding: 10px;
+    }
 
     .stage {
-      width: calc(100% - 20px);
+      position: relative;
+      width: 100%;
       max-width: 430px;
       aspect-ratio: 9 / 16;
-      margin: 0 auto;
-      position: relative;
       overflow: hidden;
-      border-radius: 20px;
-      background: black;
+      border-radius: 22px;
+      background: #111;
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
     }
 
     video, canvas {
@@ -56,54 +69,105 @@
     }
 
     video {
+      z-index: 1;
       transform: scaleX(-1);
     }
 
     canvas {
       display: none;
+      z-index: 2;
+    }
+
+    .top-label {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,.90);
+      color: #111827;
+      padding: 10px 16px;
+      border-radius: 16px;
+      font-weight: 700;
+      font-size: 18px;
+      white-space: nowrap;
+      z-index: 5;
+    }
+
+    .bottom-label {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,23,42,.80);
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 14px;
+      z-index: 5;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      padding: 16px 12px 22px;
     }
 
     button {
-      margin: 14px 6px;
-      padding: 14px 18px;
       border: none;
-      border-radius: 12px;
+      border-radius: 14px;
+      padding: 14px 18px;
       font-size: 16px;
-      font-weight: bold;
+      font-weight: 700;
       cursor: pointer;
+      min-width: 150px;
     }
 
-    #bgBtn {
-      background: #f59e0b;
-      color: #111827;
-    }
+    .primary { background: #2563eb; color: white; }
+    .secondary { background: #e5e7eb; color: #111827; }
+    .success { background: #16a34a; color: white; }
+    .warning { background: #f59e0b; color: #111827; }
 
-    #resetBtn {
-      background: #e5e7eb;
-      color: #111827;
+    .note {
+      max-width: 520px;
+      margin: 0 auto 24px;
+      padding: 0 16px;
+      color: #cbd5e1;
+      font-size: 14px;
+      line-height: 1.5;
     }
   </style>
 </head>
-
 <body>
 
-<h1>Диагностика AR-фона</h1>
+<header>
+  <h1>Фото на Индере</h1>
+  <div class="subtitle">AR-фотозона проекта Zerde</div>
+  <div class="status" id="status">Запускаем камеру...</div>
+</header>
 
-<div class="statusBox" id="log">
-  <div id="s1" class="wait">1. Камера: ожидание</div>
-  <div id="s2" class="wait">2. Фон: ожидание</div>
-  <div id="s3" class="wait">3. MediaPipe: ожидание</div>
-  <div id="s4" class="wait">4. Модель: ожидание</div>
-  <div id="s5" class="wait">5. Первый кадр: ожидание</div>
+<div class="stage-wrap">
+  <div class="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas" width="720" height="1280"></canvas>
+
+    <div class="top-label">ИНДЕР · ТҰЗДЫКӨЛ</div>
+    <div class="bottom-label">Zerde AR Project</div>
+  </div>
 </div>
 
-<div class="stage">
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas" width="720" height="1280"></canvas>
+<div class="controls">
+  <button class="warning" id="bgBtn">🏞 Включить фон Индер</button>
+  <button class="primary" id="captureBtn">📸 Сделать фото</button>
+  <button class="success" id="saveBtn" disabled>⬇ Сохранить фото</button>
+  <button class="secondary" id="switchBtn">🔄 Сменить камеру</button>
 </div>
 
-<button id="bgBtn">Включить фон Индер</button>
-<button id="resetBtn">Перезапустить</button>
+<div class="note">
+  Сначала запускается обычная камера. Затем нажмите
+  <b>«Включить фон Индер»</b>, дождитесь обработки и сделайте фото.
+</div>
 
 <script>
   const video = document.getElementById("video");
@@ -111,21 +175,30 @@
   const ctx = canvas.getContext("2d");
 
   const bgBtn = document.getElementById("bgBtn");
-  const resetBtn = document.getElementById("resetBtn");
+  const captureBtn = document.getElementById("captureBtn");
+  const saveBtn = document.getElementById("saveBtn");
+  const switchBtn = document.getElementById("switchBtn");
+  const statusEl = document.getElementById("status");
 
   const bgImage = new Image();
   bgImage.src = "inder_bg.png";
 
   let stream = null;
-  let selfieSegmentation = null;
+  let facingMode = "user";
   let segmentationEnabled = false;
-  let frameLoopStarted = false;
+  let selfieSegmentation = null;
+  let photoData = null;
   let processing = false;
+  let lastResults = null;
 
-  function setStep(id, text, state) {
-    const el = document.getElementById(id);
-    el.textContent = text;
-    el.className = state;
+  const maskCanvas = document.createElement("canvas");
+  const maskCtx = maskCanvas.getContext("2d");
+
+  const personCanvas = document.createElement("canvas");
+  const personCtx = personCanvas.getContext("2d");
+
+  function setStatus(text) {
+    statusEl.textContent = text;
   }
 
   function drawCover(img, context, w, h) {
@@ -151,11 +224,15 @@
 
   async function startCamera() {
     try {
-      setStep("s1", "1. Камера: запускается...", "wait");
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      setStatus("Запускаем камеру...");
 
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: "user",
+          facingMode: facingMode,
           width: { ideal: 720 },
           height: { ideal: 1280 }
         },
@@ -165,127 +242,216 @@
       video.srcObject = stream;
       await video.play();
 
-      setStep("s1", "1. Камера: OK", "ok");
-
-    } catch (err) {
-      console.error(err);
-      setStep("s1", "1. Камера: ОШИБКА", "bad");
-    }
-  }
-
-  bgImage.onload = () => {
-    setStep("s2", "2. Фон: OK", "ok");
-  };
-
-  bgImage.onerror = () => {
-    setStep("s2", "2. Фон: ОШИБКА загрузки", "bad");
-  };
-
-  async function initSegmentation() {
-    try {
-      setStep("s3", "3. MediaPipe: создаём...", "wait");
-
-      if (typeof SelfieSegmentation === "undefined") {
-        setStep("s3", "3. MediaPipe: библиотека НЕ загрузилась", "bad");
-        return false;
+      if (facingMode === "user") {
+        video.style.transform = "scaleX(-1)";
+      } else {
+        video.style.transform = "none";
       }
 
-      setStep("s3", "3. MediaPipe: библиотека OK", "ok");
-
-      setStep("s4", "4. Модель: загружается...", "wait");
-
-      selfieSegmentation = new SelfieSegmentation({
-        locateFile: (file) => {
-          return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
-        }
-      });
-
-      selfieSegmentation.setOptions({
-        modelSelection: 0
-      });
-
-      selfieSegmentation.onResults(onResults);
-
-      setStep("s4", "4. Модель: объект создан", "ok");
-
-      return true;
+      setStatus("Камера готова.");
+      requestAnimationFrame(processFrame);
 
     } catch (err) {
       console.error(err);
-      setStep("s4", "4. Модель: ОШИБКА", "bad");
-      return false;
+      setStatus("Не удалось открыть камеру.");
+      alert("Разрешите доступ к камере.");
     }
   }
 
-  function onResults(results) {
-    setStep("s5", "5. Первый кадр: OK", "ok");
+  async function initSegmentation() {
+    if (selfieSegmentation) return;
 
+    setStatus("Загружаем AR-фон...");
+
+    selfieSegmentation = new SelfieSegmentation({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/${file}`;
+      }
+    });
+
+    selfieSegmentation.setOptions({
+      modelSelection: 0
+    });
+
+    selfieSegmentation.onResults((results) => {
+      lastResults = results;
+      renderComposite(results);
+      processing = false;
+    });
+
+    setStatus("AR-фон готов.");
+  }
+
+  function renderComposite(results) {
     const w = canvas.width;
     const h = canvas.height;
 
+    maskCanvas.width = w;
+    maskCanvas.height = h;
+    personCanvas.width = w;
+    personCanvas.height = h;
+
     ctx.clearRect(0, 0, w, h);
 
-    // Фон
+    // 1) Рисуем фон озера
     drawCover(bgImage, ctx, w, h);
 
-    // Маска
-    ctx.save();
+    // 2) Маска
+    maskCtx.clearRect(0, 0, w, h);
+    maskCtx.drawImage(results.segmentationMask, 0, 0, w, h);
+    const maskImageData = maskCtx.getImageData(0, 0, w, h);
+    const mData = maskImageData.data;
 
-    ctx.globalCompositeOperation = "destination-in";
-    ctx.drawImage(results.segmentationMask, 0, 0, w, h);
+    // 3) Человек из видео
+    personCtx.clearRect(0, 0, w, h);
+    personCtx.save();
 
-    ctx.globalCompositeOperation = "source-over";
+    if (facingMode === "user") {
+      personCtx.translate(w, 0);
+      personCtx.scale(-1, 1);
+    }
 
-    ctx.translate(w, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(results.image, 0, 0, w, h);
+    personCtx.drawImage(results.image, 0, 0, w, h);
+    personCtx.restore();
 
-    ctx.restore();
+    const personImageData = personCtx.getImageData(0, 0, w, h);
+    const pData = personImageData.data;
 
-    processing = false;
+    for (let i = 0; i < pData.length; i += 4) {
+      const maskValue = mData[i];
+      if (maskValue < 120) {
+        pData[i + 3] = 0;
+      }
+    }
+
+    personCtx.putImageData(personImageData, 0, 0);
+
+    // 4) Накладываем человека поверх фона
+    ctx.drawImage(personCanvas, 0, 0);
+
+    // 5) Лёгкая нижняя тень
+    const gradient = ctx.createLinearGradient(0, h * 0.72, 0, h);
+    gradient.addColorStop(0, "rgba(0,0,0,0)");
+    gradient.addColorStop(1, "rgba(0,0,0,0.12)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
   }
 
-  async function frameLoop() {
-    if (!segmentationEnabled || !selfieSegmentation) return;
-
-    if (!processing && video.readyState >= 2) {
+  async function processFrame() {
+    if (
+      segmentationEnabled &&
+      selfieSegmentation &&
+      !processing &&
+      video.readyState >= 2
+    ) {
       processing = true;
 
       try {
         await selfieSegmentation.send({ image: video });
-      } catch (err) {
-        console.error(err);
+      } catch (e) {
+        console.error(e);
         processing = false;
-        setStep("s5", "5. Первый кадр: ОШИБКА", "bad");
+        setStatus("Ошибка обработки кадра.");
       }
     }
 
-    requestAnimationFrame(frameLoop);
+    requestAnimationFrame(processFrame);
   }
 
   bgBtn.addEventListener("click", async () => {
-    segmentationEnabled = true;
+    if (!segmentationEnabled) {
+      if (!bgImage.complete) {
+        alert("Фон ещё не загрузился.");
+        return;
+      }
 
-    const ok = await initSegmentation();
+      await initSegmentation();
 
-    if (!ok) return;
+      segmentationEnabled = true;
+      video.style.display = "none";
+      canvas.style.display = "block";
 
-    canvas.style.display = "block";
-    video.style.display = "none";
+      bgBtn.textContent = "✖ Выключить фон";
+      setStatus("Фон Индер включён.");
+    } else {
+      segmentationEnabled = false;
+      canvas.style.display = "none";
+      video.style.display = "block";
 
-    setStep("s5", "5. Первый кадр: ждём...", "wait");
-
-    if (!frameLoopStarted) {
-      frameLoopStarted = true;
-      frameLoop();
+      bgBtn.textContent = "🏞 Включить фон Индер";
+      setStatus("Обычная камера.");
     }
   });
 
-  resetBtn.addEventListener("click", () => {
-    location.reload();
+  captureBtn.addEventListener("click", () => {
+    const w = canvas.width;
+    const h = canvas.height;
+
+    const finalCanvas = document.createElement("canvas");
+    finalCanvas.width = w;
+    finalCanvas.height = h;
+    const fctx = finalCanvas.getContext("2d");
+
+    if (segmentationEnabled && lastResults) {
+      fctx.drawImage(canvas, 0, 0, w, h);
+    } else {
+      if (facingMode === "user") {
+        fctx.translate(w, 0);
+        fctx.scale(-1, 1);
+      }
+      fctx.drawImage(video, 0, 0, w, h);
+    }
+
+    // Верхняя плашка
+    fctx.fillStyle = "rgba(255,255,255,0.90)";
+    fctx.fillRect(120, 45, 480, 75);
+
+    fctx.fillStyle = "#111827";
+    fctx.font = "bold 34px Arial";
+    fctx.textAlign = "center";
+    fctx.fillText("ИНДЕР · ТҰЗДЫКӨЛ", w / 2, 95);
+
+    // Нижняя плашка
+    fctx.fillStyle = "rgba(15,23,42,0.82)";
+    fctx.fillRect(200, 1155, 320, 60);
+
+    fctx.fillStyle = "#ffffff";
+    fctx.font = "bold 25px Arial";
+    fctx.fillText("Zerde AR Project", w / 2, 1195);
+
+    photoData = finalCanvas.toDataURL("image/png");
+    saveBtn.disabled = false;
+    setStatus("Фото готово.");
   });
 
-  startCamera();
+  saveBtn.addEventListener("click", () => {
+    if (!photoData) return;
+
+    const link = document.createElement("a");
+    link.href = photoData;
+    link.download = "inder-photo.png";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+
+  switchBtn.addEventListener("click", async () => {
+    facingMode = facingMode === "user" ? "environment" : "user";
+
+    segmentationEnabled = false;
+    canvas.style.display = "none";
+    video.style.display = "block";
+    bgBtn.textContent = "🏞 Включить фон Индер";
+    await startCamera();
+  });
+
+  bgImage.onload = async () => {
+    await startCamera();
+  };
+
+  if (bgImage.complete) {
+    startCamera();
+  }
 </script>
 
 </body>
