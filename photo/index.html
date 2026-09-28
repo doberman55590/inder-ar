@@ -1,1 +1,374 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Фото на Индере</title>
 
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+    }
+
+    header {
+      padding: 14px 12px 8px;
+      background: linear-gradient(180deg, #0f172a, #1e293b);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.15;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      font-size: 16px;
+      opacity: 0.9;
+    }
+
+    .stage-wrap {
+      padding: 10px 10px 0;
+      display: flex;
+      justify-content: center;
+    }
+
+    .stage {
+      width: 100%;
+      max-width: 430px;
+      aspect-ratio: 9 / 16;
+      position: relative;
+      border-radius: 22px;
+      overflow: hidden;
+      background: #111827;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: black;
+    }
+
+    video {
+      display: none;
+    }
+
+    .overlay-title {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.88);
+      color: #111827;
+      padding: 10px 16px;
+      border-radius: 16px;
+      font-weight: bold;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      white-space: nowrap;
+    }
+
+    .overlay-badge {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.82);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: bold;
+      backdrop-filter: blur(4px);
+    }
+
+    .controls {
+      padding: 16px 12px 22px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    button {
+      border: none;
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      min-width: 150px;
+    }
+
+    .primary {
+      background: #2563eb;
+      color: white;
+    }
+
+    .secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .success {
+      background: #16a34a;
+      color: white;
+    }
+
+    .note {
+      max-width: 520px;
+      margin: 0 auto 24px;
+      padding: 0 16px;
+      color: #cbd5e1;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status {
+      font-size: 14px;
+      color: #93c5fd;
+      margin-top: 6px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Фото на Индере</h1>
+    <div class="subtitle">Сделайте фото на фоне солёного озера</div>
+    <div class="status" id="status">Запрашиваем доступ к камере...</div>
+  </header>
+
+  <div class="stage-wrap">
+    <div class="stage">
+      <canvas id="outputCanvas" width="720" height="1280"></canvas>
+      <div class="overlay-title">ИНДЕР · ТҰЗДЫКӨЛ</div>
+      <div class="overlay-badge">Zerde AR Project</div>
+      <video id="inputVideo" playsinline autoplay muted></video>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="captureBtn">📸 Сделать фото</button>
+    <button class="success" id="downloadBtn" disabled>⬇ Скачать фото</button>
+    <button class="secondary" id="switchBtn">🔄 Сменить камеру</button>
+  </div>
+
+  <div class="note">
+    Наведите телефон на себя, дождитесь появления фона озера и нажмите
+    <b>«Сделать фото»</b>. После этого нажмите <b>«Скачать фото»</b>.
+  </div>
+
+  <script>
+    const video = document.getElementById("inputVideo");
+    const canvas = document.getElementById("outputCanvas");
+    const ctx = canvas.getContext("2d");
+    const captureBtn = document.getElementById("captureBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const switchBtn = document.getElementById("switchBtn");
+    const statusEl = document.getElementById("status");
+
+    let facingMode = "user";
+    let latestImageDataUrl = null;
+    let lastResults = null;
+    let camera = null;
+
+    const bgImage = new Image();
+    bgImage.src = "inder_bg.png";
+
+    const maskCanvas = document.createElement("canvas");
+    const maskCtx = maskCanvas.getContext("2d");
+
+    const personCanvas = document.createElement("canvas");
+    const personCtx = personCanvas.getContext("2d");
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function drawCoverImage(img, context, w, h) {
+      const imageRatio = img.width / img.height;
+      const canvasRatio = w / h;
+
+      let drawWidth, drawHeight, dx, dy;
+
+      if (imageRatio > canvasRatio) {
+        drawHeight = h;
+        drawWidth = h * imageRatio;
+        dx = (w - drawWidth) / 2;
+        dy = 0;
+      } else {
+        drawWidth = w;
+        drawHeight = w / imageRatio;
+        dx = 0;
+        dy = (h - drawHeight) / 2;
+      }
+
+      context.drawImage(img, dx, dy, drawWidth, drawHeight);
+    }
+
+    function renderComposite(results) {
+      if (!bgImage.complete) return;
+
+      const w = canvas.width;
+      const h = canvas.height;
+
+      maskCanvas.width = w;
+      maskCanvas.height = h;
+      personCanvas.width = w;
+      personCanvas.height = h;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 1) Фон озера
+      drawCoverImage(bgImage, ctx, w, h);
+
+      // 2) Маска человека
+      maskCtx.clearRect(0, 0, w, h);
+      maskCtx.drawImage(results.segmentationMask, 0, 0, w, h);
+
+      // 3) Вырезаем человека из видео
+      personCtx.clearRect(0, 0, w, h);
+      personCtx.save();
+
+      if (facingMode === "user") {
+        personCtx.translate(w, 0);
+        personCtx.scale(-1, 1);
+      }
+
+      personCtx.drawImage(results.image, 0, 0, w, h);
+      personCtx.restore();
+
+      const personImageData = personCtx.getImageData(0, 0, w, h);
+      const maskImageData = maskCtx.getImageData(0, 0, w, h);
+
+      const pData = personImageData.data;
+      const mData = maskImageData.data;
+
+      for (let i = 0; i < pData.length; i += 4) {
+        const maskValue = mData[i];
+        if (maskValue < 120) {
+          pData[i + 3] = 0;
+        }
+      }
+
+      personCtx.putImageData(personImageData, 0, 0);
+
+      // 4) Добавляем человека поверх фона
+      ctx.drawImage(personCanvas, 0, 0);
+
+      // 5) Небольшая тень снизу для глубины
+      const gradient = ctx.createLinearGradient(0, h * 0.75, 0, h);
+      gradient.addColorStop(0, "rgba(0,0,0,0)");
+      gradient.addColorStop(1, "rgba(0,0,0,0.16)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    async function setupCamera() {
+      if (camera && camera.video) {
+        const stream = camera.video.srcObject;
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      }
+
+      setStatus("Запускаем камеру...");
+
+      const selfieSegmentation = new SelfieSegmentation({
+        locateFile: (file) => {
+          return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
+        }
+      });
+
+      selfieSegmentation.setOptions({
+        modelSelection: 1
+      });
+
+      selfieSegmentation.onResults((results) => {
+        lastResults = results;
+        renderComposite(results);
+      });
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 720 },
+          height: { ideal: 1280 }
+        },
+        audio: false
+      });
+
+      video.srcObject = stream;
+
+      await video.play();
+
+      camera = new Camera(video, {
+        onFrame: async () => {
+          await selfieSegmentation.send({ image: video });
+        },
+        width: 720,
+        height: 1280
+      });
+
+      camera.start();
+      setStatus("Готово. Можно делать фото.");
+    }
+
+    captureBtn.addEventListener("click", () => {
+      if (!lastResults) {
+        alert("Подождите, камера ещё запускается.");
+        return;
+      }
+
+      latestImageDataUrl = canvas.toDataURL("image/png");
+      downloadBtn.disabled = false;
+      setStatus("Фото готово. Нажмите «Скачать фото».");
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      if (!latestImageDataUrl) return;
+
+      const link = document.createElement("a");
+      link.href = latestImageDataUrl;
+      link.download = "inder-photo.png";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+    switchBtn.addEventListener("click", async () => {
+      facingMode = facingMode === "user" ? "environment" : "user";
+      await setupCamera();
+    });
+
+    bgImage.onload = async () => {
+      try {
+        await setupCamera();
+      } catch (err) {
+        console.error(err);
+        setStatus("Не удалось открыть камеру.");
+        alert("Не удалось открыть камеру. Откройте страницу по HTTPS и разрешите доступ к камере.");
+      }
+    };
+
+    if (bgImage.complete) {
+      bgImage.onload();
+    }
+  </script>
+</body>
+</html>
