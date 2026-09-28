@@ -56,7 +56,7 @@
       aspect-ratio: 9 / 16;
       overflow: hidden;
       border-radius: 22px;
-      background: #111;
+      background: #000;
       box-shadow: 0 12px 30px rgba(0,0,0,.35);
     }
 
@@ -65,11 +65,12 @@
       inset: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
     }
 
     video {
       z-index: 1;
+      object-fit: contain;
+      background: #000;
       transform: scaleX(-1);
     }
 
@@ -165,8 +166,8 @@
 </div>
 
 <div class="note">
-  Сначала запускается обычная камера. Затем нажмите
-  <b>«Включить фон Индер»</b>, дождитесь обработки и сделайте фото.
+  Камера запускается с более широким кадром. В режиме AR человек автоматически
+  уменьшается примерно до эффекта 0,5×.
 </div>
 
 <script>
@@ -191,8 +192,9 @@
   let processing = false;
   let lastResults = null;
 
-  const maskCanvas = document.createElement("canvas");
-  const maskCtx = maskCanvas.getContext("2d");
+  // Визуальный "широкоугольный" эффект.
+  // 1.0 = обычный размер, 0.72 = заметно шире / дальше.
+  const PERSON_SCALE = 0.72;
 
   const personCanvas = document.createElement("canvas");
   const personCtx = personCanvas.getContext("2d");
@@ -220,6 +222,38 @@
     }
 
     context.drawImage(img, dx, dy, dw, dh);
+  }
+
+  function drawContainVideo(source, context, w, h, mirror) {
+    const sw = source.videoWidth || 720;
+    const sh = source.videoHeight || 1280;
+    const sr = sw / sh;
+    const cr = w / h;
+
+    let dw, dh, dx, dy;
+
+    if (sr > cr) {
+      dw = w;
+      dh = w / sr;
+      dx = 0;
+      dy = (h - dh) / 2;
+    } else {
+      dh = h;
+      dw = h * sr;
+      dx = (w - dw) / 2;
+      dy = 0;
+    }
+
+    context.save();
+
+    if (mirror) {
+      context.translate(w, 0);
+      context.scale(-1, 1);
+      dx = w - dx - dw;
+    }
+
+    context.drawImage(source, 0, 0, sw, sh, dx, dy, dw, dh);
+    context.restore();
   }
 
   async function startCamera() {
@@ -286,53 +320,67 @@
     const w = canvas.width;
     const h = canvas.height;
 
-    maskCanvas.width = w;
-    maskCanvas.height = h;
     personCanvas.width = w;
     personCanvas.height = h;
 
     ctx.clearRect(0, 0, w, h);
 
-    // 1) Рисуем фон озера
+    // 1) Фон Индерского озера на весь кадр
     drawCover(bgImage, ctx, w, h);
 
-    // 2) Маска
-    maskCtx.clearRect(0, 0, w, h);
-    maskCtx.drawImage(results.segmentationMask, 0, 0, w, h);
-    const maskImageData = maskCtx.getImageData(0, 0, w, h);
-    const mData = maskImageData.data;
+    // 2) Размер и позиция человека:
+    // уменьшаем и ставим ближе к нижней части кадра
+    const newW = w * PERSON_SCALE;
+    const newH = h * PERSON_SCALE;
+    const x = (w - newW) / 2;
+    const y = h - newH;
 
-    // 3) Человек из видео
     personCtx.clearRect(0, 0, w, h);
     personCtx.save();
 
+    // ВАЖНО: одинаковое преобразование для человека и маски
     if (facingMode === "user") {
       personCtx.translate(w, 0);
       personCtx.scale(-1, 1);
+
+      const mirroredX = w - x - newW;
+
+      personCtx.drawImage(
+        results.image,
+        mirroredX, y, newW, newH
+      );
+
+      personCtx.globalCompositeOperation = "destination-in";
+      personCtx.filter = "blur(3px)";
+      personCtx.drawImage(
+        results.segmentationMask,
+        mirroredX, y, newW, newH
+      );
+    } else {
+      personCtx.drawImage(
+        results.image,
+        x, y, newW, newH
+      );
+
+      personCtx.globalCompositeOperation = "destination-in";
+      personCtx.filter = "blur(3px)";
+      personCtx.drawImage(
+        results.segmentationMask,
+        x, y, newW, newH
+      );
     }
 
-    personCtx.drawImage(results.image, 0, 0, w, h);
+    personCtx.filter = "none";
+    personCtx.globalCompositeOperation = "source-over";
     personCtx.restore();
 
-    const personImageData = personCtx.getImageData(0, 0, w, h);
-    const pData = personImageData.data;
-
-    for (let i = 0; i < pData.length; i += 4) {
-      const maskValue = mData[i];
-      if (maskValue < 120) {
-        pData[i + 3] = 0;
-      }
-    }
-
-    personCtx.putImageData(personImageData, 0, 0);
-
-    // 4) Накладываем человека поверх фона
+    // 3) Человек поверх фона
     ctx.drawImage(personCanvas, 0, 0);
 
-    // 5) Лёгкая нижняя тень
+    // 4) Лёгкая нижняя тень
     const gradient = ctx.createLinearGradient(0, h * 0.72, 0, h);
     gradient.addColorStop(0, "rgba(0,0,0,0)");
-    gradient.addColorStop(1, "rgba(0,0,0,0.12)");
+    gradient.addColorStop(1, "rgba(0,0,0,0.10)");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
   }
@@ -395,11 +443,10 @@
     if (segmentationEnabled && lastResults) {
       fctx.drawImage(canvas, 0, 0, w, h);
     } else {
-      if (facingMode === "user") {
-        fctx.translate(w, 0);
-        fctx.scale(-1, 1);
-      }
-      fctx.drawImage(video, 0, 0, w, h);
+      // Обычная камера: сохраняем полный кадр без "cover"-кропа
+      fctx.fillStyle = "#000";
+      fctx.fillRect(0, 0, w, h);
+      drawContainVideo(video, fctx, w, h, facingMode === "user");
     }
 
     // Верхняя плашка
@@ -442,6 +489,7 @@
     canvas.style.display = "none";
     video.style.display = "block";
     bgBtn.textContent = "🏞 Включить фон Индер";
+
     await startCamera();
   });
 
